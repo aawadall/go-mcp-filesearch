@@ -26,6 +26,8 @@ This project implements an MCP server that follows the [Model Context Protocol s
 - **Initialize**: Handles client initialization with protocol version `2024-11-05`
 - **Capabilities**: Supports resource subscription, list changes, and tool list changes
 - **Error Handling**: Proper JSON-RPC error responses with appropriate error codes
+- **Multiline Support**: Can parse JSON-RPC requests spanning multiple lines
+- **Batch Processing**: Supports processing multiple JSON-RPC requests in a single input
 
 ## Project Structure
 
@@ -38,11 +40,27 @@ go-mcp-filesearch/
 │   ├── filesearch/          # File search functionality (placeholder)
 │   │   ├── handler.go
 │   │   └── registry.go
+│   ├── models/
+│   │   └── mcp.go          # MCP and JSON-RPC data structures and constants
 │   └── server/
-│       └── server.go        # MCP server implementation
+│       └── server.go        # MCP server implementation and business logic
 ├── go.mod                   # Go module definition
 └── README.md               # This file
 ```
+
+### Code Organization
+
+The project follows Go best practices with clear separation of concerns:
+
+- **`internal/models/`**: Contains all data structures, constants, and type definitions
+  - JSON-RPC 2.0 structures (`JSONRPCRequest`, `JSONRPCResponse`, `JSONRPCError`)
+  - MCP-specific structures (`InitializeParams`, `ServerInfo`, `Resource`, `Tool`)
+  - Protocol constants and error codes
+- **`internal/server/`**: Contains the server implementation and business logic
+  - `MCPServer` struct and its methods
+  - Request handling and routing logic
+  - Tool and resource management
+- **`cmd/server/`**: Contains the main application entry point
 
 ## Installation
 
@@ -67,13 +85,34 @@ The server communicates via stdin/stdout using JSON-RPC 2.0:
 ./mcp-server
 ```
 
+### Input Formats
+
+The server supports three input formats:
+
+1. **Single-line JSON-RPC**: Compact format on one line
+2. **Multiline JSON-RPC**: Pretty-printed JSON spanning multiple lines
+3. **Batch JSON-RPC**: Array of multiple JSON-RPC requests
+
+### Testing Multiline and Batch Support
+
+Use the provided test script to verify multiline and batch parsing:
+
+```bash
+./scripts/test_multiline.sh
+```
+
 ### Example MCP Client Integration
 
 The server can be integrated with MCP clients like Claude Desktop or other MCP-compatible applications. The server expects JSON-RPC messages on stdin and responds with JSON-RPC messages on stdout.
 
 ### Example Request/Response
 
-**Initialize Request:**
+**Single-Line Initialize Request:**
+```json
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test-client","version":"1.0.0"}}}
+```
+
+**Multiline Initialize Request:**
 ```json
 {
   "jsonrpc": "2.0",
@@ -88,6 +127,31 @@ The server can be integrated with MCP clients like Claude Desktop or other MCP-c
     }
   }
 }
+```
+
+**Batch Request (Multiple Commands):**
+```json
+[
+  {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {
+      "protocolVersion": "2024-11-05",
+      "capabilities": {},
+      "clientInfo": {
+        "name": "test-client",
+        "version": "1.0.0"
+      }
+    }
+  },
+  {
+    "jsonrpc": "2.0",
+    "id": 2,
+    "method": "tools/list",
+    "params": {}
+  }
+]
 ```
 
 **Initialize Response:**
@@ -155,12 +219,21 @@ The server can be integrated with MCP clients like Claude Desktop or other MCP-c
 
 ## Development
 
+### Code Structure Principles
+
+The codebase follows these organizational principles:
+
+1. **Separation of Concerns**: Data models are separate from business logic
+2. **Single Responsibility**: Each package has a clear, focused purpose
+3. **Dependency Management**: Internal packages use explicit imports
+4. **Constants Management**: All magic numbers and strings are defined as constants
+
 ### Adding New Tools
 
 To add a new tool, modify the `NewMCPServer()` function in `internal/server/server.go`:
 
 ```go
-tools: []Tool{
+tools: []models.Tool{
     {
         Name:        "your-tool-name",
         Description: "Description of your tool",
@@ -185,7 +258,7 @@ Then add the tool handling logic in the `handleCallTool` method.
 To add new resources, modify the `resources` slice in `NewMCPServer()`:
 
 ```go
-resources: []Resource{
+resources: []models.Resource{
     {
         URI:         "your://resource-uri",
         Name:        "Your Resource Name",
@@ -194,6 +267,24 @@ resources: []Resource{
     },
 }
 ```
+
+### Adding New Data Structures
+
+When adding new MCP or JSON-RPC structures, add them to `internal/models/mcp.go`:
+
+```go
+type NewStructure struct {
+    Field1 string `json:"field1"`
+    Field2 int    `json:"field2,omitempty"`
+}
+```
+
+### Error Handling
+
+The server uses standardized JSON-RPC error codes defined in `internal/models/mcp.go`:
+
+- `ErrCodeMethodNotFound` (-32601): Method not found
+- `ErrCodeParseError` (-32700): Parse error
 
 ## Requirements
 

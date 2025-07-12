@@ -1,3 +1,6 @@
+// Package server implements the Model Context Protocol (MCP) server functionality.
+// It provides the core server logic for handling MCP requests, managing resources and tools,
+// and communicating with MCP clients via JSON-RPC 2.0 over stdin/stdout.
 package server
 
 import (
@@ -6,80 +9,23 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/aawadall/go-mcp-filesearch/internal/models"
 )
 
-// JSON-RPC 2.0 structures
-type JSONRPCRequest struct {
-	JSONRPC string      `json:"jsonrpc"`
-	ID      interface{} `json:"id"`
-	Method  string      `json:"method"`
-	Params  interface{} `json:"params,omitempty"`
-}
-
-type JSONRPCResponse struct {
-	JSONRPC string        `json:"jsonrpc"`
-	ID      interface{}   `json:"id"`
-	Result  interface{}   `json:"result,omitempty"`
-	Error   *JSONRPCError `json:"error,omitempty"`
-}
-
-type JSONRPCError struct {
-	Code    int         `json:"code"`
-	Message string      `json:"message"`
-	Data    interface{} `json:"data,omitempty"`
-}
-
-// MCP specific structures
-type InitializeParams struct {
-	ProtocolVersion string                 `json:"protocolVersion"`
-	Capabilities    map[string]interface{} `json:"capabilities"`
-	ClientInfo      ClientInfo             `json:"clientInfo"`
-}
-
-type ClientInfo struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
-}
-
-type ServerInfo struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
-}
-
-type ServerCapabilities struct {
-	Resources map[string]interface{} `json:"resources,omitempty"`
-	Tools     map[string]interface{} `json:"tools,omitempty"`
-	Prompts   map[string]interface{} `json:"prompts,omitempty"`
-}
-
-type InitializeResult struct {
-	ProtocolVersion string             `json:"protocolVersion"`
-	Capabilities    ServerCapabilities `json:"capabilities"`
-	ServerInfo      ServerInfo         `json:"serverInfo"`
-}
-
-type Resource struct {
-	URI         string `json:"uri"`
-	Name        string `json:"name"`
-	Description string `json:"description,omitempty"`
-	MimeType    string `json:"mimeType,omitempty"`
-}
-
-type Tool struct {
-	Name        string                 `json:"name"`
-	Description string                 `json:"description,omitempty"`
-	InputSchema map[string]interface{} `json:"inputSchema"`
-}
-
+// MCPServer represents an MCP server instance that handles client requests
+// and manages resources and tools.
 type MCPServer struct {
 	initialized bool
-	resources   []Resource
-	tools       []Tool
+	resources   []models.Resource
+	tools       []models.Tool
 }
 
+// NewMCPServer creates and returns a new MCPServer instance with default
+// resources and tools configured.
 func NewMCPServer() *MCPServer {
 	server := &MCPServer{
-		resources: []Resource{
+		resources: []models.Resource{
 			{
 				URI:         "example://test",
 				Name:        "Test Resource",
@@ -87,7 +33,7 @@ func NewMCPServer() *MCPServer {
 				MimeType:    "text/plain",
 			},
 		},
-		tools: []Tool{
+		tools: []models.Tool{
 			{
 				Name:        "echo",
 				Description: "Echo back the input text",
@@ -107,12 +53,14 @@ func NewMCPServer() *MCPServer {
 	return server
 }
 
+// handleInitialize processes the initialize method request and returns
+// server capabilities and information.
 func (s *MCPServer) handleInitialize(params interface{}) (interface{}, error) {
 	s.initialized = true
 
-	return InitializeResult{
-		ProtocolVersion: "2024-11-05",
-		Capabilities: ServerCapabilities{
+	return models.InitializeResult{
+		ProtocolVersion: models.MCPProtocolVersion,
+		Capabilities: models.ServerCapabilities{
 			Resources: map[string]interface{}{
 				"subscribe":   true,
 				"listChanged": true,
@@ -121,13 +69,14 @@ func (s *MCPServer) handleInitialize(params interface{}) (interface{}, error) {
 				"listChanged": true,
 			},
 		},
-		ServerInfo: ServerInfo{
-			Name:    "simple-mcp-server",
-			Version: "1.0.0",
+		ServerInfo: models.ServerInfo{
+			Name:    models.ServerName,
+			Version: models.ServerVersion,
 		},
 	}, nil
 }
 
+// handleListResources returns the list of available resources.
 func (s *MCPServer) handleListResources(params interface{}) (interface{}, error) {
 	if !s.initialized {
 		return nil, fmt.Errorf("server not initialized")
@@ -138,6 +87,7 @@ func (s *MCPServer) handleListResources(params interface{}) (interface{}, error)
 	}, nil
 }
 
+// handleListTools returns the list of available tools.
 func (s *MCPServer) handleListTools(params interface{}) (interface{}, error) {
 	if !s.initialized {
 		return nil, fmt.Errorf("server not initialized")
@@ -148,6 +98,7 @@ func (s *MCPServer) handleListTools(params interface{}) (interface{}, error) {
 	}, nil
 }
 
+// handleReadResource reads and returns the contents of a specified resource.
 func (s *MCPServer) handleReadResource(params interface{}) (interface{}, error) {
 	if !s.initialized {
 		return nil, fmt.Errorf("server not initialized")
@@ -164,6 +115,7 @@ func (s *MCPServer) handleReadResource(params interface{}) (interface{}, error) 
 	}, nil
 }
 
+// handleCallTool executes a specific tool with the provided arguments.
 func (s *MCPServer) handleCallTool(params interface{}) (interface{}, error) {
 	if !s.initialized {
 		return nil, fmt.Errorf("server not initialized")
@@ -204,7 +156,19 @@ func (s *MCPServer) handleCallTool(params interface{}) (interface{}, error) {
 	}
 }
 
-func (s *MCPServer) handleRequest(req JSONRPCRequest) JSONRPCResponse {
+// handleBatchRequest processes a batch of JSON-RPC requests and returns an array of responses.
+func (s *MCPServer) handleBatchRequest(requests []models.JSONRPCRequest) []models.JSONRPCResponse {
+	responses := make([]models.JSONRPCResponse, len(requests))
+
+	for i, req := range requests {
+		responses[i] = s.handleRequest(req)
+	}
+
+	return responses
+}
+
+// handleRequest routes incoming JSON-RPC requests to the appropriate handler method.
+func (s *MCPServer) handleRequest(req models.JSONRPCRequest) models.JSONRPCResponse {
 	var result interface{}
 	var err error
 
@@ -223,14 +187,14 @@ func (s *MCPServer) handleRequest(req JSONRPCRequest) JSONRPCResponse {
 		err = fmt.Errorf("method not found: %s", req.Method)
 	}
 
-	response := JSONRPCResponse{
-		JSONRPC: "2.0",
+	response := models.JSONRPCResponse{
+		JSONRPC: models.JSONRPCVersion,
 		ID:      req.ID,
 	}
 
 	if err != nil {
-		response.Error = &JSONRPCError{
-			Code:    -32601, // method not found
+		response.Error = &models.JSONRPCError{
+			Code:    models.ErrCodeMethodNotFound, // method not found
 			Message: err.Error(),
 		}
 	} else {
@@ -240,34 +204,68 @@ func (s *MCPServer) handleRequest(req JSONRPCRequest) JSONRPCResponse {
 	return response
 }
 
+// Run starts the MCP server and begins listening for JSON-RPC requests on stdin.
+// The server processes requests and supports both single-line and multiline JSON-RPC messages.
 func (s *MCPServer) Run() {
 	scanner := bufio.NewScanner(os.Stdin)
+	var buffer strings.Builder
 
 	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
+		line := scanner.Text()
+
+		// Add the line to our buffer
+		buffer.WriteString(line)
+		buffer.WriteString("\n")
+
+		// Try to parse the accumulated content as JSON
+		content := buffer.String()
+		content = strings.TrimSpace(content)
+
+		if content == "" {
 			continue
 		}
 
-		var req JSONRPCRequest
-		if err := json.Unmarshal([]byte(line), &req); err != nil {
-			errResp := JSONRPCResponse{
-				JSONRPC: "2.0",
-				ID:      nil,
-				Error: &JSONRPCError{
-					Code:    -32700, // Parse error
-					Message: "Parse error",
-				},
-			}
-			if respBytes, err := json.Marshal(errResp); err == nil {
+		// First, try to parse as a single JSON-RPC request
+		var req models.JSONRPCRequest
+		if err := json.Unmarshal([]byte(content), &req); err == nil {
+			// Single request - process it
+			response := s.handleRequest(req)
+			if respBytes, err := json.Marshal(response); err == nil {
 				fmt.Println(string(respBytes))
 			}
+			buffer.Reset()
 			continue
 		}
 
-		response := s.handleRequest(req)
+		// If single request parsing failed, try parsing as a batch request
+		var requests []models.JSONRPCRequest
+		if err := json.Unmarshal([]byte(content), &requests); err == nil {
+			// Batch request - process all requests
+			responses := s.handleBatchRequest(requests)
+			for _, response := range responses {
+				if respBytes, err := json.Marshal(response); err == nil {
+					fmt.Println(string(respBytes))
+				}
+			}
+			buffer.Reset()
+			continue
+		}
 
-		if respBytes, err := json.Marshal(response); err == nil {
+		// If both parsing attempts failed, continue accumulating lines
+		// This allows for multiline JSON input
+	}
+
+	// Handle any remaining content in buffer (incomplete JSON)
+	if remaining := strings.TrimSpace(buffer.String()); remaining != "" {
+		errResp := models.JSONRPCResponse{
+			JSONRPC: models.JSONRPCVersion,
+			ID:      nil,
+			Error: &models.JSONRPCError{
+				Code:    models.ErrCodeParseError,
+				Message: "Incomplete JSON-RPC request",
+			},
+		}
+		if respBytes, err := json.Marshal(errResp); err == nil {
 			fmt.Println(string(respBytes))
 		}
 	}
