@@ -1,0 +1,131 @@
+{
+  "examples": {
+    "initialize": {
+      "description": "Initialize the MCP connection",
+      "request": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+          "protocolVersion": "2024-11-05",
+          "capabilities": {
+            "resources": {
+              "subscribe": true,
+              "listChanged": true
+            },
+            "tools": {
+              "listChanged": true
+            }
+          },
+          "clientInfo": {
+            "name": "test-client",
+            "version": "1.0.0"
+          }
+        }
+      }
+    },
+    "list_resources": {
+      "description": "List available resources",
+      "request": {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "resources/list",
+        "params": {}
+      }
+    },
+    "read_resource": {
+      "description": "Read a specific resource",
+      "request": {
+        "jsonrpc": "2.0",
+        "id": 3,
+        "method": "resources/read",
+        "params": {
+          "uri": "example://test"
+        }
+      }
+    },
+    "list_tools": {
+      "description": "List available tools",
+      "request": {
+        "jsonrpc": "2.0",
+        "id": 4,
+        "method": "tools/list",
+        "params": {}
+      }
+    },
+    "call_echo_tool": {
+      "description": "Call the echo tool with text",
+      "request": {
+        "jsonrpc": "2.0",
+        "id": 5,
+        "method": "tools/call",
+        "params": {
+          "name": "echo",
+          "arguments": {
+            "text": "Hello, World!"
+          }
+        }
+      }
+    },
+    "call_echo_tool_another_message": {
+      "description": "Call the echo tool with a different message",
+      "request": {
+        "jsonrpc": "2.0",
+        "id": 6,
+        "method": "tools/call",
+        "params": {
+          "name": "echo",
+          "arguments": {
+            "text": "Testing the MCP server!"
+          }
+        }
+      }
+    },
+    "invalid_method": {
+      "description": "Test error handling with invalid method",
+      "request": {
+        "jsonrpc": "2.0",
+        "id": 7,
+        "method": "invalid/method",
+        "params": {}
+      }
+    },
+    "invalid_tool": {
+      "description": "Test error handling with invalid tool name",
+      "request": {
+        "jsonrpc": "2.0",
+        "id": 8,
+        "method": "tools/call",
+        "params": {
+          "name": "nonexistent_tool",
+          "arguments": {}
+        }
+      }
+    },
+    "echo_missing_argument": {
+      "description": "Test error handling with missing required argument",
+      "request": {
+        "jsonrpc": "2.0",
+        "id": 9,
+        "method": "tools/call",
+        "params": {
+          "name": "echo",
+          "arguments": {}
+        }
+      }
+    }
+  },
+  "test_sequence": [
+    "Initialize the connection first",
+    "List available resources",
+    "Read the test resource",
+    "List available tools", 
+    "Call the echo tool",
+    "Test error conditions"
+  ],
+  "usage_instructions": {
+    "manual_testing": "Copy each request and paste it into stdin when running the server",
+    "automated_testing": "Use a script to send these requests sequentially",
+    "expected_responses": "Each request should receive a corresponding JSON-RPC response"
+  }
+} 
