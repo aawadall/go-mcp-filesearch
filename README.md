@@ -8,7 +8,9 @@ This project implements an MCP server that follows the [Model Context Protocol s
 
 - **Resources**: File-based resources that can be listed and read
 - **Tools**: Executable tools that can be called by MCP clients
-- **JSON-RPC 2.0 Communication**: Standard protocol communication over stdin/stdout
+- **Multiple Transport Options**: 
+  - **stdin/stdout**: Standard protocol communication over stdin/stdout
+  - **HTTP**: RESTful HTTP API for web-based clients
 
 ## Features
 
@@ -34,8 +36,10 @@ This project implements an MCP server that follows the [Model Context Protocol s
 ```
 go-mcp-filesearch/
 ├── cmd/
-│   └── server/
-│       └── main.go          # Main entry point
+│   ├── server/
+│   │   └── main.go          # stdin/stdout MCP server entry point
+│   └── http-server/
+│       └── main.go          # HTTP MCP server entry point
 ├── internal/
 │   ├── filesearch/          # File search functionality (placeholder)
 │   │   ├── handler.go
@@ -43,7 +47,13 @@ go-mcp-filesearch/
 │   ├── models/
 │   │   └── mcp.go          # MCP and JSON-RPC data structures and constants
 │   └── server/
-│       └── server.go        # MCP server implementation and business logic
+│       ├── server.go        # MCP server implementation and business logic
+│       └── http_server.go   # HTTP transport layer for MCP server
+├── examples/
+│   └── http_client.go       # Example HTTP client implementation
+├── scripts/
+│   ├── test_http_server.sh  # HTTP server test script
+│   └── ...                  # Other test scripts
 ├── go.mod                   # Go module definition
 └── README.md               # This file
 ```
@@ -70,19 +80,65 @@ git clone https://github.com/aawadall/go-mcp-filesearch.git
 cd go-mcp-filesearch
 ```
 
-2. Build the server:
+2. Build the servers:
 ```bash
+# Build stdin/stdout MCP server
 go build -o mcp-server cmd/server/main.go
+
+# Build HTTP MCP server
+go build -o mcp-http-server cmd/http-server/main.go
 ```
 
 ## Usage
 
-### Running the Server
+### Running the Servers
 
-The server communicates via stdin/stdout using JSON-RPC 2.0:
+#### stdin/stdout MCP Server
+
+The traditional MCP server communicates via stdin/stdout using JSON-RPC 2.0:
 
 ```bash
 ./mcp-server
+```
+
+#### HTTP MCP Server
+
+The HTTP-based MCP server provides a RESTful API for web clients:
+
+```bash
+# Run on default port 8080
+./mcp-http-server
+
+# Run on custom port
+MCP_HTTP_PORT=9000 ./mcp-http-server
+```
+
+The HTTP server provides the following endpoints:
+
+- `GET /` - Server information and usage guide
+- `GET /health` - Health check endpoint
+- `GET /info` - Server details and capabilities
+- `POST /mcp` - Main MCP protocol endpoint (accepts JSON-RPC 2.0 requests)
+
+#### Testing the HTTP Server
+
+Use the provided test script to verify the HTTP server functionality:
+
+```bash
+# Start the HTTP server in one terminal
+./mcp-http-server
+
+# In another terminal, run the test script
+./scripts/test_http_server.sh
+```
+
+#### Using the Go HTTP Client
+
+The project includes an example Go client for the HTTP server:
+
+```bash
+# Build and run the example client
+go run examples/http_client.go
 ```
 
 ### Input Formats
@@ -103,7 +159,32 @@ Use the provided test script to verify multiline and batch parsing:
 
 ### Example MCP Client Integration
 
-The server can be integrated with MCP clients like Claude Desktop or other MCP-compatible applications. The server expects JSON-RPC messages on stdin and responds with JSON-RPC messages on stdout.
+#### stdin/stdout Transport
+
+The traditional server can be integrated with MCP clients like Claude Desktop or other MCP-compatible applications. The server expects JSON-RPC messages on stdin and responds with JSON-RPC messages on stdout.
+
+#### HTTP Transport
+
+The HTTP server can be integrated with web-based clients, mobile apps, or any HTTP client. Send POST requests to `/mcp` with JSON-RPC 2.0 formatted requests:
+
+```bash
+# Example using curl
+curl -X POST http://localhost:8080/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {
+      "protocolVersion": "2024-11-05",
+      "capabilities": {},
+      "clientInfo": {
+        "name": "curl-client",
+        "version": "1.0.0"
+      }
+    }
+  }'
+```
 
 ### Example Request/Response
 
